@@ -36,10 +36,8 @@ class UDPMessageBroker(val nodeNumber: Int?, private val properties: Properties)
         try {
             if (nodeNumber != null)
                 datagramSocket = DatagramSocket(replicaAddress(nodeNumber))
-            else {
-                datagramSocket = DatagramSocket()
-                datagramSocket!!.connect(replicaAddress(2))
-            }
+            else
+                datagramSocket = DatagramSocket(0)
             while (true) {
                 val buf = ByteArray(1024)
                 val packet = DatagramPacket(buf, 1024)
