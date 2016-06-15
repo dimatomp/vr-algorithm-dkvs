@@ -25,8 +25,6 @@ class VRMessageProcessor(val numReplicas: Int, val replicaId: Int, broker: Messa
     }
 
     private fun changeStatus(value: Status) {
-        if (value !is Normal)
-            throw IllegalStateException("View changes and recovery not supported")
         processPendingMessages()
         broker.cancelScheduled()
         when (value) {
@@ -37,8 +35,10 @@ class VRMessageProcessor(val numReplicas: Int, val replicaId: Int, broker: Messa
             is NormalBackup -> broker.scheduleRepeated(MessageBroker.Interval.LONG) {
                 if (value.triggered)
                     value.triggered = false
-                else
-                    status = ViewChange
+                else {
+                    status = ViewChange(viewNumber, replicaId, log, opNumber, commitNumber, 1)
+                    broadcast { broker.sendMessage(StartViewChange(++viewNumber, replicaId), Replica(it)) }
+                }
             }
         }
     }
@@ -78,6 +78,9 @@ class VRMessageProcessor(val numReplicas: Int, val replicaId: Int, broker: Messa
             is Prepare -> processPrepare(m)
             is PrepareOk -> processPrepareOk(m)
             is Commit -> processCommit(m)
+            is StartViewChange -> processStartViewChange(m)
+            is DoViewChange -> processDoViewChange(m)
+            is StartView -> processStartView(m)
             else -> throw UnsupportedOperationException("Operation $m not supported")
         }
     }

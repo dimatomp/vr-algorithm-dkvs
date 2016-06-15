@@ -19,6 +19,7 @@ import kotlin.properties.Delegates
 class UDPMessageBroker(val nodeNumber: Int?, private val properties: Properties): MessageBroker<Message, Address> {
     companion object {
         private val logger = LoggerFactory.getLogger(UDPMessageBroker::class.java)
+        private val rng = Random()
     }
 
     private var datagramSocket: DatagramSocket? = null
@@ -68,9 +69,9 @@ class UDPMessageBroker(val nodeNumber: Int?, private val properties: Properties)
         stream.writeObject(m)
         stream.close()
         try {
-            val recAddress = when (recipient) {
+            val recAddress: SocketAddress = when (recipient) {
                 is Replica -> replicaAddress(recipient.number)
-                is Client -> recipient.address
+                is Client -> recipient.address as SocketAddress
                 else -> throw IllegalArgumentException("Unsupported recipient type: $recipient")
             }
             datagramSocket?.send(DatagramPacket(byteArray.toByteArray(), byteArray.size(), recAddress))
@@ -86,15 +87,21 @@ class UDPMessageBroker(val nodeNumber: Int?, private val properties: Properties)
 
     override fun scheduleRepeated(interval: MessageBroker.Interval, operation: () -> Unit) {
         cancelScheduled()
-        val time = if (interval == MessageBroker.Interval.SHORT) longInterval / 4 else longInterval
-        job = repeatedJobExecutor.scheduleAtFixedRate(
+        val time = if (interval == MessageBroker.Interval.SHORT)
+            longInterval / 4
+        else
+            rng.nextLong() % (longInterval / 5) + longInterval * 9 / 10
+        job = repeatedJobExecutor.scheduleWithFixedDelay(
                 {
                     try {
-                        synchronized(this, operation)
+                        synchronized(this) {
+                            if (!Thread.interrupted())
+                                operation()
+                        }
                     } catch (e: Throwable) {
                         logger.error("Internal message processor error", e)
                     }
-                }, 0, time, TimeUnit.MILLISECONDS)
+                }, time, time, TimeUnit.MILLISECONDS)
     }
 
     override fun cancelScheduled() {

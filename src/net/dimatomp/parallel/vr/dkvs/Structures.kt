@@ -1,18 +1,18 @@
 package net.dimatomp.parallel.vr.dkvs
 
 import java.io.Serializable
-import java.net.SocketAddress
 
 /**
  * Created by dimatomp on 22.05.16.
  */
 interface Message: Serializable
 data class Request(val op: Operation, val client: Client, val requestNum: Long): Message
-data class Prepare(val view: Int, val clientMessage: Request, val opNumber: Long, val commitNumber: Long): Message
-data class PrepareOk(val view: Int, val opNumber: Long, val sender: Int): Message
+data class Prepare(val view: Int, val clientMessage: Request, val primaryId: Int, val opNumber: Long, val commitNumber: Long): Message
+data class PrepareOk(val view: Int, val opNumber: Long): Message
 data class Commit(val view: Int, val commitNumber: Long): Message
 data class StartViewChange(val view: Int, val initiator: Int): Message
 data class DoViewChange(val view: Int, val log: Log, val viewBeforeChange: Int, val opNumber: Long, val commitNumber: Long): Message
+data class StartView(val view: Int, val log: Log, val primaryId: Int, val opNumber: Long, val commitNumber: Long): Message
 
 data class Log(val userReqs: MutableList<Request>): Serializable
 
@@ -31,9 +31,7 @@ class Pong(): Response
 
 interface Address: Serializable
 data class Replica(val number: Int): Address
-data class Client(val address: SocketAddress): Address
+data class Client(val address: Any): Address
 
 interface Status
-object ViewChange: Status
-object Recovery: Status
 

@@ -33,7 +33,7 @@ fun VRMessageProcessor.processRequest(m: Request) {
     if (lastRequest == null || lastRequest.request.requestNum < m.requestNum) {
         log.userReqs.add(m)
         status.clientRequests[++opNumber] = ClientRequest(m, null)
-        broadcast { broker.sendMessage(Prepare(viewNumber, m, opNumber, commitNumber), Replica(it)) }
+        broadcast { broker.sendMessage(Prepare(viewNumber, m, replicaId, opNumber, commitNumber), Replica(it)) }
     } else if (lastRequest.request.requestNum == m.requestNum)
         broker.sendMessage(lastRequest.response, m.client)
 }
@@ -60,14 +60,14 @@ fun VRMessageProcessor.processPrepareOk(m: PrepareOk) {
 
 fun VRMessageProcessor.processPrepare(m: Prepare) {
     var status = status
+    if (m.view < viewNumber)
+        return
     if (status !is Normal) {
         pendingMessages.add(m)
         return
     }
-    if (m.view < viewNumber)
-        return
     if (m.view > viewNumber) {
-        throw UnsupportedOperationException("Unimplemented!")
+        throw IllegalStateException("Cannot accept Prepare with a higher view number")
     }
     status = status as NormalBackup
     status.pendingPrepare[m.opNumber] = m
@@ -75,7 +75,7 @@ fun VRMessageProcessor.processPrepare(m: Prepare) {
         val cMessage = status.pendingPrepare[++opNumber]!!
         log.userReqs.add(cMessage.clientMessage)
         clientTable[m.clientMessage.client] = LastRequest(cMessage.clientMessage, respondMessage(cMessage.clientMessage))
-        broker.sendMessage(PrepareOk(viewNumber, cMessage.opNumber, replicaId), Replica(status.primaryId))
+        broker.sendMessage(PrepareOk(viewNumber, cMessage.opNumber), Replica(status.primaryId))
         status.pendingPrepare.remove(opNumber)
     }
 }
@@ -85,8 +85,8 @@ fun VRMessageProcessor.processCommit(m: Commit) {
     if (status !is NormalBackup || m.view < viewNumber)
         return
     if (m.view > viewNumber)
-        throw UnsupportedOperationException("Unimplemented!")
-    commitNumber = m.commitNumber
+        throw UnsupportedOperationException("Cannot accept Commit with a higher view number")
+    commitNumber = Math.max(commitNumber, m.commitNumber)
     status.triggered = true
 }
 

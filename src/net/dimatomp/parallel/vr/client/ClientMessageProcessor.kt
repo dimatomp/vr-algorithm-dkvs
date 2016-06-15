@@ -8,8 +8,6 @@ import net.dimatomp.parallel.vr.dkvs.*
  * Created by dimatomp on 13.06.16.
  */
 class ClientMessageProcessor(broker: MessageBroker<Message, Address>, var opNumber: Long = 0): MessageProcessor<Message, Address>(broker) {
-    private var operation = 0
-
     override fun onMessage(m: Message) {
         println(when (m) {
             is Value -> "VALUE ${m.key} ${m.value}"

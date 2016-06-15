@@ -1,7 +1,6 @@
 package net.dimatomp.parallel.vr.dkvs
 
 import net.dimatomp.parallel.vr.broker.UDPMessageBroker
-import net.dimatomp.parallel.vr.dkvs.VRMessageProcessor
 import java.util.*
 
 /**
