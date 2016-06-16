@@ -37,8 +37,16 @@ class VRMessageProcessor(val numReplicas: Int, val replicaId: Int, broker: Messa
                     value.triggered = false
                 else {
                     status = ViewChange(viewNumber, replicaId, log, opNumber, commitNumber, 1)
-                    broadcast { broker.sendMessage(StartViewChange(++viewNumber, replicaId), Replica(it)) }
+                    viewNumber++
+                    broadcast { broker.sendMessage(StartViewChange(viewNumber, replicaId), Replica(it)) }
+                    println("Initiating view change, new number $viewNumber")
                 }
+            }
+            is ViewChange -> broker.scheduleRepeated(MessageBroker.Interval.LONG) {
+                status = ViewChange(viewNumber, replicaId, log, opNumber, commitNumber, 1)
+                viewNumber++
+                broadcast { broker.sendMessage(StartViewChange(viewNumber, replicaId), Replica(it)) }
+                println("Re-initiating stale view change process, new number $viewNumber")
             }
         }
     }

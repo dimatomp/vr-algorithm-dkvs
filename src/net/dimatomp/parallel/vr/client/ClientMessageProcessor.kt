@@ -7,7 +7,9 @@ import net.dimatomp.parallel.vr.dkvs.*
 /**
  * Created by dimatomp on 13.06.16.
  */
-class ClientMessageProcessor(broker: MessageBroker<Message, Address>, var opNumber: Long = 0): MessageProcessor<Message, Address>(broker) {
+class ClientMessageProcessor(broker: MessageBroker<Message, Address>, var replicaId: Int = 2): MessageProcessor<Message, Address>(broker) {
+    private var opNumber: Long = 0
+
     override fun onMessage(m: Message) {
         println(when (m) {
             is Value -> "VALUE ${m.key} ${m.value}"
@@ -29,6 +31,6 @@ class ClientMessageProcessor(broker: MessageBroker<Message, Address>, var opNumb
             else -> null
         }
         if (request != null)
-            broker.sendMessage(Request(request, broker.myAddress as Client, opNumber++), Replica(2))
+            broker.sendMessage(Request(request, broker.myAddress as Client, opNumber++), Replica(replicaId))
     }
 }

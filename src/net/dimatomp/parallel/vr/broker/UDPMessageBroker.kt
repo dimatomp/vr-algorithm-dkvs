@@ -33,6 +33,10 @@ class UDPMessageBroker(val nodeNumber: Int?, private val properties: Properties)
 
     private fun replicaAddress(number: Int): SocketAddress = socketAddress(properties.getProperty("node.$number"))
 
+    private val buf = ByteArray(1 shl 20)
+    private val packet = DatagramPacket(buf, buf.size)
+    private val bufInput = ByteArrayInputStream(buf)
+
     fun start() {
         try {
             if (nodeNumber != null)
@@ -40,13 +44,15 @@ class UDPMessageBroker(val nodeNumber: Int?, private val properties: Properties)
             else
                 datagramSocket = DatagramSocket(0)
             while (true) {
-                val buf = ByteArray(1024)
-                val packet = DatagramPacket(buf, 1024)
                 datagramSocket!!.receive(packet)
-                // TODO Re-use all ObjectInputStreams and ObjectOutputStreams
-                val stream = ObjectInputStream(buf.inputStream())
-                val m = stream.readObject() as Message
-                stream.close()
+                val m = try {
+                    bufInput.reset()
+                    // TODO Try to recycle ObjectInputStreams
+                    ObjectInputStream(bufInput).readObject() as Message
+                } catch (e: IOException) {
+                    logger.error("Failed to read a message from ${packet.address}", e)
+                    continue
+                }
                 logger.debug("Received message $m")
                 synchronized(this) { client.onMessage(m) }
             }
@@ -90,7 +96,9 @@ class UDPMessageBroker(val nodeNumber: Int?, private val properties: Properties)
         val time = if (interval == MessageBroker.Interval.SHORT)
             longInterval / 4
         else
-            rng.nextLong() % (longInterval / 5) + longInterval * 9 / 10
+            //rng.nextLong() % (longInterval / 5) + longInterval * 9 / 10
+            // FIXME Debugging solution.
+            longInterval * (8 + (nodeNumber ?: 0)) / 10
         job = repeatedJobExecutor.scheduleWithFixedDelay(
                 {
                     try {

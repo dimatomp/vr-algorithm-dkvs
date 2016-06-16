@@ -39,14 +39,11 @@ fun VRMessageProcessor.processRequest(m: Request) {
 }
 
 fun VRMessageProcessor.processPrepareOk(m: PrepareOk) {
-    var status = status
-    if (status !is Normal) {
-        pendingMessages.add(m)
-        return
-    }
     if (m.view < viewNumber)
         return
-    status = status as NormalPrimary
+    if (m.view > viewNumber || status !is NormalPrimary)
+        throw IllegalStateException("Reception of higher view PrepareOk not supported")
+    val status = status as NormalPrimary
     val okReplies = ++status.clientRequests[m.opNumber]!!.okReplies
     if (okReplies == numReplicas / 2) {
         while (commitNumber < m.opNumber) {
@@ -59,17 +56,12 @@ fun VRMessageProcessor.processPrepareOk(m: PrepareOk) {
 }
 
 fun VRMessageProcessor.processPrepare(m: Prepare) {
-    var status = status
     if (m.view < viewNumber)
         return
-    if (status !is Normal) {
-        pendingMessages.add(m)
-        return
-    }
-    if (m.view > viewNumber) {
+    if (m.view > viewNumber || status !is NormalBackup) {
         throw IllegalStateException("Cannot accept Prepare with a higher view number")
     }
-    status = status as NormalBackup
+    val status = status as NormalBackup
     status.pendingPrepare[m.opNumber] = m
     while (!status.pendingPrepare.isEmpty() && status.pendingPrepare.firstKey() == opNumber + 1) {
         val cMessage = status.pendingPrepare[++opNumber]!!
@@ -82,9 +74,9 @@ fun VRMessageProcessor.processPrepare(m: Prepare) {
 
 fun VRMessageProcessor.processCommit(m: Commit) {
     val status = status
-    if (status !is NormalBackup || m.view < viewNumber)
+    if (m.view < viewNumber)
         return
-    if (m.view > viewNumber)
+    if (status !is NormalBackup || m.view > viewNumber)
         throw UnsupportedOperationException("Cannot accept Commit with a higher view number")
     commitNumber = Math.max(commitNumber, m.commitNumber)
     status.triggered = true

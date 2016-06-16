@@ -12,7 +12,7 @@ fun main(args: Array<String>) {
     properties.load(stream)
     stream.close()
     val broker = UDPMessageBroker(null, properties)
-    val processor = ClientMessageProcessor(broker, if (args.isEmpty()) 0 else args[0].toLong())
+    val processor = ClientMessageProcessor(broker, if (args.isEmpty()) 2 else args[0].toInt())
     val brokerThread = Thread { broker.start() }
     brokerThread.start()
     try {

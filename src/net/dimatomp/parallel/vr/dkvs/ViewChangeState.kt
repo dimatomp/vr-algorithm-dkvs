@@ -8,7 +8,11 @@ class ViewChange(val prevView: Int, var primaryCandidate: Int, var latestLog: Lo
 fun VRMessageProcessor.processStartViewChange(m: StartViewChange) {
     var status = status
     when (status) {
-        is Normal -> status = ViewChange(viewNumber, m.initiator, log, opNumber, commitNumber)
+        is Normal ->
+            if (m.view > viewNumber)
+                status = ViewChange(viewNumber, m.initiator, log, opNumber, commitNumber)
+            else
+                return
         is ViewChange ->
             if (m.view > viewNumber)
                 status = ViewChange(status.prevView, m.initiator, log, status.opNumber, status.commitNumber)
@@ -24,7 +28,11 @@ fun VRMessageProcessor.processStartViewChange(m: StartViewChange) {
 fun VRMessageProcessor.processDoViewChange(m: DoViewChange) {
     var status = status
     when (status) {
-        is Normal -> status = ViewChange(viewNumber, replicaId, log, opNumber, commitNumber, 1)
+        is Normal ->
+            if (m.view > viewNumber)
+                status = ViewChange(viewNumber, replicaId, log, opNumber, commitNumber, 1)
+            else
+                return
         is ViewChange ->
             if (m.view > viewNumber)
                 status = ViewChange(status.prevView, replicaId, status.latestLog, status.opNumber, status.commitNumber, 1)
@@ -50,7 +58,7 @@ fun VRMessageProcessor.processDoViewChange(m: DoViewChange) {
 }
 
 fun VRMessageProcessor.processStartView(m: StartView) {
-    if (m.view >= viewNumber) {
+    if (status is ViewChange && m.view == viewNumber || m.view > viewNumber) {
         status = NormalBackup(m.primaryId)
         log = m.log
         commitNumber = m.commitNumber
