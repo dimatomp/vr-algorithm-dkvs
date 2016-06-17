@@ -10,10 +10,15 @@ class NodeRecovery(val id: Int, var primaryInfo: PrimaryInfo? = null, var nRespo
 fun VRMessageProcessor.processRecovery(m: Recovery) {
     when (status) {
         is NormalPrimary -> broker.sendMessage(
-                RecoveryResponse(viewNumber, m.id, PrimaryInfo(replicaId, Log(ArrayList(log.userReqs.subList(m.numOps.toInt(), log.userReqs.size))), opNumber, commitNumber)),
+                RecoveryResponse(viewNumber, m.id, PrimaryInfo(replicaId,
+                        Log(ArrayList(log.userReqs.subList(Math.min(m.numOps.toInt(), log.userReqs.size), log.userReqs.size))),
+                        opNumber, commitNumber)),
                 Replica(m.replicaId))
         is NormalBackup -> broker.sendMessage(RecoveryResponse(viewNumber, m.id, null), Replica(m.replicaId))
-        else -> pendingMessages.add(m)
+        else -> {
+            println("Suspended a message $m from recovering process")
+            pendingMessages.add(m)
+        }
     }
 }
 

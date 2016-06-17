@@ -55,6 +55,7 @@ class VRMessageProcessor(val numReplicas: Int, val replicaId: Int, broker: Messa
                 broadcast { broker.sendMessage(StartViewChange(viewNumber, replicaId), Replica(it)) }
                 println("Re-initiating stale view change process, new number $viewNumber")
             }
+            is NodeRecovery -> broadcast { broker.sendMessage(Recovery(replicaId, value.id, log.userReqs.size.toLong()), Replica(it)) }
         }
     }
     var status: Status = initStatus()
@@ -64,9 +65,14 @@ class VRMessageProcessor(val numReplicas: Int, val replicaId: Int, broker: Messa
             processPendingMessages()
         }
 
+    companion object {
+        private val rng = Random()
+    }
+
     private fun initStatus(): Status {
         val file = File("node.$replicaId.log")
         val result = if (file.exists()) {
+            println("Found a log, recovering the node")
             val objInput = ObjectInputStream(FileInputStream(file))
             try {
                 while (true) {
@@ -85,10 +91,7 @@ class VRMessageProcessor(val numReplicas: Int, val replicaId: Int, broker: Messa
             fileLog = ObjectOutputStream(FileOutputStream(file))
             for (m in log.userReqs)
                 fileLog!!.writeObject(m)
-            val id = Random().nextInt()
-            println("Found a log, recovering the node")
-            broadcast { broker.sendMessage(Recovery(replicaId, id, log.userReqs.size.toLong()), Replica(it)) }
-            NodeRecovery(id)
+            NodeRecovery(rng.nextInt())
         } else {
             fileLog = ObjectOutputStream(FileOutputStream(file))
             if (replicaId == 1)
