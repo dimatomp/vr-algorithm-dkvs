@@ -18,7 +18,7 @@ fun VRMessageProcessor.processStartViewChange(m: StartViewChange) {
                 status = ViewChange(status.prevView, m.initiator, log, status.opNumber, status.commitNumber)
             else
                 return
-        else -> throw IllegalStateException("View change during recovery not supported")
+        else -> return
     }
     this.status = status
     viewNumber = m.view
@@ -36,7 +36,7 @@ fun VRMessageProcessor.processDoViewChange(m: DoViewChange) {
         is ViewChange ->
             if (m.view > viewNumber)
                 status = ViewChange(status.prevView, replicaId, status.latestLog, status.opNumber, status.commitNumber, 1)
-        else -> throw IllegalStateException("View change during recovery not supported")
+        else -> return
     }
     this.status = status
     viewNumber = m.view

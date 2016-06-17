@@ -19,9 +19,9 @@ import kotlin.properties.Delegates
 class UDPMessageBroker(val nodeNumber: Int?, private val properties: Properties): MessageBroker<Message, Address> {
     companion object {
         private val logger = LoggerFactory.getLogger(UDPMessageBroker::class.java)
-        private val rng = Random()
     }
 
+    private val suspended: MutableList<DatagramPacket> = ArrayList()
     private var datagramSocket: DatagramSocket? = null
     override val myAddress: Address
         get() = if (nodeNumber == null) Client(datagramSocket!!.localSocketAddress) else Replica(nodeNumber)
@@ -43,6 +43,9 @@ class UDPMessageBroker(val nodeNumber: Int?, private val properties: Properties)
                 datagramSocket = DatagramSocket(replicaAddress(nodeNumber))
             else
                 datagramSocket = DatagramSocket(0)
+            for (packet in suspended)
+                datagramSocket!!.send(packet)
+            suspended.clear()
             while (true) {
                 datagramSocket!!.receive(packet)
                 val m = try {
@@ -69,6 +72,7 @@ class UDPMessageBroker(val nodeNumber: Int?, private val properties: Properties)
         this.client = client
     }
 
+
     override fun sendMessage(m: Message, recipient: Address) {
         val byteArray = ByteArrayOutputStream()
         val stream = ObjectOutputStream(byteArray)
@@ -80,7 +84,8 @@ class UDPMessageBroker(val nodeNumber: Int?, private val properties: Properties)
                 is Client -> recipient.address as SocketAddress
                 else -> throw IllegalArgumentException("Unsupported recipient type: $recipient")
             }
-            datagramSocket?.send(DatagramPacket(byteArray.toByteArray(), byteArray.size(), recAddress))
+            val packet = DatagramPacket(byteArray.toByteArray(), byteArray.size(), recAddress)
+            datagramSocket?.send(packet) ?: suspended.add(packet)
             logger.debug("Sent message $m to recipient $recipient")
         } catch (e: IOException) {
             logger.error("Failed to send a message to recipient $recipient", e)
@@ -96,8 +101,6 @@ class UDPMessageBroker(val nodeNumber: Int?, private val properties: Properties)
         val time = if (interval == MessageBroker.Interval.SHORT)
             longInterval / 4
         else
-            //rng.nextLong() % (longInterval / 5) + longInterval * 9 / 10
-            // FIXME Debugging solution.
             longInterval * (8 + (nodeNumber ?: 0)) / 10
         job = repeatedJobExecutor.scheduleWithFixedDelay(
                 {

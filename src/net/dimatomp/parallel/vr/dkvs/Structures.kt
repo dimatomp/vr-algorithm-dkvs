@@ -13,8 +13,11 @@ data class Commit(val view: Int, val commitNumber: Long): Message
 data class StartViewChange(val view: Int, val initiator: Int): Message
 data class DoViewChange(val view: Int, val log: Log, val viewBeforeChange: Int, val opNumber: Long, val commitNumber: Long): Message
 data class StartView(val view: Int, val log: Log, val primaryId: Int, val opNumber: Long, val commitNumber: Long): Message
+data class Recovery(val replicaId: Int, val id: Int, val numOps: Long): Message
+data class RecoveryResponse(val view: Int, val id: Int, val primaryInfo: PrimaryInfo?): Message
 
 data class Log(val userReqs: MutableList<Request>): Serializable
+data class PrimaryInfo(val primaryId: Int, val log: Log, val opNumber: Long, val commitNumber: Long): Serializable
 
 interface Operation: Serializable
 data class Get(val key: String): Operation

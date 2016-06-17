@@ -31,7 +31,6 @@ fun VRMessageProcessor.processRequest(m: Request) {
     status = status as NormalPrimary
     val lastRequest = clientTable[m.client]
     if (lastRequest == null || lastRequest.request.requestNum < m.requestNum) {
-        log.userReqs.add(m)
         status.clientRequests[++opNumber] = ClientRequest(m, null)
         broadcast { broker.sendMessage(Prepare(viewNumber, m, replicaId, opNumber, commitNumber), Replica(it)) }
     } else if (lastRequest.request.requestNum == m.requestNum)
@@ -39,7 +38,7 @@ fun VRMessageProcessor.processRequest(m: Request) {
 }
 
 fun VRMessageProcessor.processPrepareOk(m: PrepareOk) {
-    if (m.view < viewNumber)
+    if (status is NodeRecovery || m.view < viewNumber)
         return
     if (m.view > viewNumber || status !is NormalPrimary)
         throw IllegalStateException("Reception of higher view PrepareOk not supported")
@@ -56,16 +55,14 @@ fun VRMessageProcessor.processPrepareOk(m: PrepareOk) {
 }
 
 fun VRMessageProcessor.processPrepare(m: Prepare) {
-    if (m.view < viewNumber)
+    if (status is NodeRecovery || m.view < viewNumber)
         return
-    if (m.view > viewNumber || status !is NormalBackup) {
+    if (m.view > viewNumber || status !is NormalBackup)
         throw IllegalStateException("Cannot accept Prepare with a higher view number")
-    }
     val status = status as NormalBackup
     status.pendingPrepare[m.opNumber] = m
     while (!status.pendingPrepare.isEmpty() && status.pendingPrepare.firstKey() == opNumber + 1) {
         val cMessage = status.pendingPrepare[++opNumber]!!
-        log.userReqs.add(cMessage.clientMessage)
         clientTable[m.clientMessage.client] = LastRequest(cMessage.clientMessage, respondMessage(cMessage.clientMessage))
         broker.sendMessage(PrepareOk(viewNumber, cMessage.opNumber), Replica(status.primaryId))
         status.pendingPrepare.remove(opNumber)
@@ -74,7 +71,7 @@ fun VRMessageProcessor.processPrepare(m: Prepare) {
 
 fun VRMessageProcessor.processCommit(m: Commit) {
     val status = status
-    if (m.view < viewNumber)
+    if (status is NodeRecovery || m.view < viewNumber)
         return
     if (status !is NormalBackup || m.view > viewNumber)
         throw UnsupportedOperationException("Cannot accept Commit with a higher view number")
